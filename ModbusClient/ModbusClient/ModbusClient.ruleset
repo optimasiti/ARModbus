@@ -1,0 +1,7 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RuleSet Name="SonarQube" ToolsVersion="14.0">
+  <Include Path="..\sonarqube\project_keycsharp.ruleset" Action="Default" />
+  <Rules AnalyzerId="Microsoft.Analyzers.ManagedCodeAnalysis" RuleNamespace="Microsoft.Rules.Managed">
+    <Rule Id="CA1051" Action="None" />
+  </Rules>
+</RuleSet>
