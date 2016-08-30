@@ -22,6 +22,8 @@ namespace ModbusClient
         private static ushort m_TransactionId = 0;
         private static Mutex m_MutexTransaction = new Mutex();
         private byte m_ModbusErrorCode = 0;
+        private string m_HostName;
+        private int m_Port;
 
         public byte ModbusErrorCode { get { return m_ModbusErrorCode; } }
 
@@ -42,9 +44,27 @@ namespace ModbusClient
             return m_TransactionId;
         }
 
+        public ModbusTcpClient()
+        {
+        }
+
+        public ModbusTcpClient( string hostName, int port ) 
+        {
+            m_HostName = hostName;
+            m_Port = port;
+        }
+
+        public bool Connect()
+        {
+            return Connect(m_HostName, m_Port);
+        }
+
         public bool Connect( string hostName, int port )
         {
-            IPHostEntry ipHostInfo = System.Net.Dns.GetHostEntry(hostName);
+            m_HostName = hostName;
+            m_Port = port;
+
+            IPHostEntry ipHostInfo = System.Net.Dns.GetHostEntry(m_HostName);
             IPAddress ipAddress = null;
 
             foreach (var addr in ipHostInfo.AddressList)
@@ -59,7 +79,7 @@ namespace ModbusClient
             if (ipAddress == null)
                 return false;
 
-            IPEndPoint remoteEP = new IPEndPoint(ipAddress,port);
+            IPEndPoint remoteEP = new IPEndPoint(ipAddress,m_Port);
 
             m_Connection = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             m_Connection.SendTimeout = SendTimeOutMSecs;
@@ -76,28 +96,28 @@ namespace ModbusClient
             }
 
             return true;
-
         }
 
         public bool[] ReadCoils(byte unitIdentifier, ushort address, ushort quantity)
         {
+            if (!IsConnected() && !Connect(m_HostName, m_Port))
+                throw new IOException("Cannot send message.");
+
             ModbusTcpMessage modbusTcpMessage = 
                 new ModbusTcpMessage(new ReadCoils(address, quantity), GetNextTransactionId(), unitIdentifier);
 
-            byte[] sendStream = modbusTcpMessage.ToStream();
-
             try
             {
-                m_Connection.Send(sendStream);
+                SendStream(modbusTcpMessage.ToStream());
             }
-            catch
+            catch (IOException)
             {
-                throw new IOException("Cannot send message.");
+                throw;
             }
 
             byte[] readStream = new byte[255];
-
             int bytesRead;
+
             try
             {
                 bytesRead = m_Connection.Receive(readStream);
@@ -125,18 +145,19 @@ namespace ModbusClient
        
         public ushort[] ReadHoldingRegisters(byte unitIdentifier, ushort address, ushort quantity)
         {
+            if( !IsConnected() && !Connect(m_HostName, m_Port))
+                throw new IOException("Cannot send message.");
+
             ModbusTcpMessage modbusTcpMessage =
                 new ModbusTcpMessage(new ReadHoldingRegisters(address, quantity), GetNextTransactionId(), unitIdentifier);
 
-            byte[] sendStream = modbusTcpMessage.ToStream();
-
             try
             {
-                m_Connection.Send(sendStream);
+                SendStream(modbusTcpMessage.ToStream());
             }
-            catch
+            catch (IOException)
             {
-                throw new IOException( "Cannot send message.");
+                throw;
             }
 
             byte[] readStream = new byte[255];
@@ -169,19 +190,20 @@ namespace ModbusClient
 
         public void WriteMultipleRegisters(byte unitIdentifier, ushort address, ushort[] values)
         {
+            if (!IsConnected() && !Connect(m_HostName, m_Port))
+                throw new IOException("Cannot send message.");
+
             ModbusTcpMessage modbusTcpMessage =
                 new ModbusTcpMessage(new WriteMultipleRegisters(address, values), 
                                     GetNextTransactionId(), unitIdentifier);
 
-            byte[] sendStream = modbusTcpMessage.ToStream();
-
             try
             {
-                m_Connection.Send(sendStream);
+                SendStream(modbusTcpMessage.ToStream());
             }
-            catch
+            catch (IOException)
             {
-                throw new IOException("Cannot send message.");
+                throw;
             }
 
             byte[] readStream = new byte[255];
@@ -213,19 +235,20 @@ namespace ModbusClient
 
         public void WriteMultipleCoils(byte unitIdentifier, ushort address, bool[] values)
         {
+            if (!IsConnected() && !Connect(m_HostName, m_Port))
+                throw new IOException("Cannot send message.");
+
             ModbusTcpMessage modbusTcpMessage =
                 new ModbusTcpMessage(new WriteMultipleCoils(address, values),
                                     GetNextTransactionId(), unitIdentifier);
 
-            byte[] sendStream = modbusTcpMessage.ToStream();
-
             try
             {
-                m_Connection.Send(sendStream);
+                SendStream(modbusTcpMessage.ToStream());
             }
-            catch
+            catch(IOException)
             {
-                throw new IOException("Cannot send message.");
+                throw;
             }
 
             byte[] readStream = new byte[255];
@@ -255,6 +278,35 @@ namespace ModbusClient
             }
         }
         
+        private void SendStream(byte[] stream )
+        {
+            bool errorSending = false;
+
+            try 
+            {
+                m_Connection.Send(stream);
+            }
+            catch
+            {
+                errorSending = true;
+            }
+
+            if (errorSending)
+            {
+                if (!Connect(m_HostName, m_Port))
+                    throw new IOException("Cannot send message.");
+
+                try
+                {
+                    m_Connection.Send(stream);
+                }
+                catch
+                {
+                    throw new IOException("Cannot send message.");
+                }
+            }
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (disposing && m_Connection != null)
@@ -267,6 +319,11 @@ namespace ModbusClient
         {
             Dispose(true);
             GC.SuppressFinalize(this);
+        }
+
+        private bool IsConnected()
+        {
+            return m_Connection != null && m_Connection.Connected;
         }
 
         /// <remarks>

@@ -19,6 +19,7 @@ namespace ModbusClient.Tests
 
         private TcpListener m_TcpListener;
         int m_Port;
+        private bool m_ExitBody = false;
 
         public FakeModbusServer( int port )
         {
@@ -34,6 +35,7 @@ namespace ModbusClient.Tests
 
         public void StopServer()
         {
+            m_ExitBody = true;            
             Thread.Sleep(ReadTimeOutMSecs + 100);
             m_TcpListener.Stop();
         }
@@ -43,31 +45,35 @@ namespace ModbusClient.Tests
             m_TcpListener = new TcpListener(IPAddress.Any, m_Port);
             m_TcpListener.Start();
 
-            try
+            TcpClient tcpClient = m_TcpListener.AcceptTcpClient();
+
+            while (!m_ExitBody)
             {
-                TcpClient tcpClient = m_TcpListener.AcceptTcpClient();
-                NetworkStream clientStream = tcpClient.GetStream();
-                clientStream.ReadTimeout = ReadTimeOutMSecs;
-
-                byte[] readStream = new byte[280];
-                int bytesRead = 0;
-
                 try
                 {
-                    bytesRead = clientStream.Read(readStream, 0, readStream.Length);
+                    NetworkStream clientStream = tcpClient.GetStream();
+                    clientStream.ReadTimeout = ReadTimeOutMSecs;
+
+                    byte[] readStream = new byte[280];
+                    int bytesRead = 0;
+
+                    try
+                    {
+                        bytesRead = clientStream.Read(readStream, 0, readStream.Length);
+                    }
+                    catch
+                    {
+                        return;
+                    }
+
+                    if (bytesRead > 0)
+                    {
+                        TrateTestQuery(readStream, bytesRead, tcpClient);
+                    }
                 }
                 catch
                 {
-                    return;
                 }
-
-                if (bytesRead > 0)
-                {
-                    TrateTestQuery(readStream, bytesRead, tcpClient);
-                }
-            }
-            catch
-            {
             }
         }
 

@@ -14,6 +14,23 @@ namespace ModbusClient.Tests
     public class ModbusTcpClientTests
     {
         [TestMethod()]
+        public void ModbusClientModbusTcpClientTest() 
+        {
+            string hostName = "localhost";
+            int port = 501;
+
+            ModbusTcpClient client = new ModbusTcpClient(hostName, port);
+
+            FakeModbusServer server = new FakeModbusServer(port);
+            server.StartServer();
+
+            bool connected = client.Connect();
+            server.StopServer();
+
+            Assert.AreEqual(true, connected);
+        }
+
+        [TestMethod()]
         public void ModbusClientModbusTcpClientConnectTest()
         {
             ModbusTcpClient client = new ModbusTcpClient();
@@ -21,12 +38,12 @@ namespace ModbusClient.Tests
             string hostName = "localhost";
             int port = 502;
 
-            FakeModbusServer server = new FakeModbusServer(port); 
+            FakeModbusServer server = new FakeModbusServer(port);
             server.StartServer();
 
             bool connected = client.Connect(hostName, port);
             server.StopServer();
-            
+
             Assert.AreEqual(true, connected);
         }
 
@@ -49,8 +66,8 @@ namespace ModbusClient.Tests
 
             bool[] readBitsData = client.ReadCoils(unitIdentifier, address, quantity);
 
-            for ( int i = 0; i < quantity; i++ )
-                Assert.AreEqual(i % 2 != 0, readBitsData[i] );
+            for (int i = 0; i < quantity; i++)
+                Assert.AreEqual(i % 2 != 0, readBitsData[i]);
 
             fakeServer.StopServer();
         }
@@ -89,7 +106,7 @@ namespace ModbusClient.Tests
             int port = 512;
             byte unitIdentifier = 1;
             ushort address = 5;
-            ushort[] values = new ushort[2]{ 1010, 1020 };
+            ushort[] values = new ushort[2] { 1010, 1020 };
 
 
             FakeModbusServer fakeServer = new FakeModbusServer(port);
@@ -111,7 +128,7 @@ namespace ModbusClient.Tests
             int port = 513;
             byte unitIdentifier = 1;
             ushort address = 5;
-            bool[] values = new bool[10] { true, true, false, true, false, true, false, false, true, false }; 
+            bool[] values = new bool[10] { true, true, false, true, false, true, false, false, true, false };
 
 
             FakeModbusServer fakeServer = new FakeModbusServer(port);
@@ -145,7 +162,7 @@ namespace ModbusClient.Tests
             {
                 bool[] readBitsData = client.ReadCoils(unitIdentifier, address, quantity);
             }
-            catch( IOException )
+            catch (IOException)
             {
                 raised = true;
             }
@@ -168,5 +185,65 @@ namespace ModbusClient.Tests
 
             Assert.AreEqual(false, connected);
         }
+
+        [TestMethod()] 
+        public void ModbusClientModbusTcpClientAutoReconnectTest()
+        {
+            string hostName = "localhost";
+            int port = 504;
+
+            ModbusTcpClient client = new ModbusTcpClient(hostName, port);
+            ModbusTcpClient.ResetTransactionId();
+
+            byte unitIdentifier = 1;
+            ushort address = 5;
+            ushort quantity = 2;
+
+            FakeModbusServer fakeServer = new FakeModbusServer(port);
+            fakeServer.StartServer();
+
+            ushort[] readWordsData = client.ReadHoldingRegisters(unitIdentifier, address, quantity);
+
+            Assert.AreEqual(1200, readWordsData[0]);
+            Assert.AreEqual(1305, readWordsData[1]);
+
+            fakeServer.StopServer();
+        }
+
+        [TestMethod()] 
+        public void ModbusClient_ModbusTcpClient_TwoReadsTest()
+        {
+            string hostName = "localhost";
+            int port = 504;
+
+            ModbusTcpClient client = new ModbusTcpClient(hostName, port);
+            ModbusTcpClient.ResetTransactionId();
+
+            byte unitIdentifier = 1;
+            ushort address = 5;
+            ushort quantity = 2;
+
+            FakeModbusServer fakeServer = new FakeModbusServer(port);
+            fakeServer.StartServer();
+
+            ushort[] readWordsData = client.ReadHoldingRegisters(unitIdentifier, address, quantity);
+
+            Assert.AreEqual(1200, readWordsData[0]);
+            Assert.AreEqual(1305, readWordsData[1]);
+
+            ModbusTcpClient.ResetTransactionId();
+
+            address = 5000;
+            quantity = 10;
+
+            bool[] readBitsData = client.ReadCoils(unitIdentifier, address, quantity);
+
+            for (int i = 0; i < quantity; i++)
+                Assert.AreEqual(i % 2 != 0, readBitsData[i]);
+                
+            fakeServer.StopServer();
+        }
+
+
     }
 }
